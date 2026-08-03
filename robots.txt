@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Disallow: /korea-geography-quiz-test/
+
+User-agent: Yeti
+Allow: /
+Disallow: /korea-geography-quiz-test/
+
+Sitemap: https://ttlmymo.github.io/sitemap.xml
