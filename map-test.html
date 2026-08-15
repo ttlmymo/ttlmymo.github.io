@@ -253,28 +253,60 @@
   }
 
   /* ── D: Dynamic Map ── */
-  var dmap = null, dmarker = null, dBounds = null;
+  var dmap = null, dmarker = null, dBounds = null, dInited = false;
 
   function renderD(name, feat, bb) {
     if (!MAPS_OK) { setStatus("stD", "maps.js가 로드되지 않아 표시할 수 없습니다.", true); return; }
     var el = document.getElementById("mapD");
     if (!el.offsetWidth) { setStatus("stD", "컨테이너 크기 0", true); return; }
 
+    // 실제 그리기 작업
+    function draw() {
+      try {
+        var olds = [];
+        dmap.data.forEach(function (f) { olds.push(f); });
+        olds.forEach(function (f) { try { dmap.data.removeFeature(f); } catch (e) {} });
+        if (dmarker) { dmarker.setMap(null); dmarker = null; }
+
+        dmap.data.addGeoJson({ type: "FeatureCollection", features: [feat] });
+        dmap.data.setStyle({
+          fillColor: "#1a73e8", fillOpacity: 0.12,
+          strokeColor: "#1a73e8", strokeOpacity: 0.95, strokeWeight: 2.5
+        });
+
+        dBounds = new naver.maps.LatLngBounds(
+          new naver.maps.LatLng(bb[1], bb[0]),
+          new naver.maps.LatLng(bb[3], bb[2])
+        );
+        dmap.fitBounds(dBounds, { top: 28, right: 28, bottom: 28, left: 28 });
+
+        dmarker = new naver.maps.Marker({
+          map: dmap,
+          position: new naver.maps.LatLng((bb[1] + bb[3]) / 2, (bb[0] + bb[2]) / 2),
+          title: "서울 " + name
+        });
+
+        setStatus("stD", "Dynamic Map · +/− 버튼으로 확대·축소 · 정렬 오차 없음");
+      } catch (e) {
+        log("✗ D 그리기 에러: " + e.message);
+        setStatus("stD", "그리기 실패: " + e.message, true);
+      }
+    }
+
     if (!dmap) {
       dmap = new naver.maps.Map(el, {
         center: new naver.maps.LatLng(37.5665, 126.9780),
         zoom: 11,
-        scrollWheel: false,        // 페이지 스크롤을 지도가 뺏지 않도록 유지
-        pinchZoom: true,           // 모바일 두 손가락 확대·축소
+        scrollWheel: false,
+        pinchZoom: true,
         mapDataControl: false,
-        zoomControl: true,         // ★ +/− 버튼
+        zoomControl: true,
         zoomControlOptions: {
           style: naver.maps.ZoomControlStyle.SMALL,
           position: naver.maps.Position.TOP_RIGHT
         }
       });
 
-      // 원래 구 화면으로 되돌리는 버튼
       var resetBtn = document.createElement("button");
       resetBtn.type = "button";
       resetBtn.textContent = "↺ 처음 위치";
@@ -288,32 +320,18 @@
       dmap.controls[naver.maps.Position.BOTTOM_RIGHT].push(resetBtn);
 
       log("✓ Dynamic Map 생성 (" + el.offsetWidth + "×" + el.offsetHeight + ") · 줌 컨트롤 ON");
+
+      // ★ 초기화 완료 후에 그린다 (내부 좌표계 미준비 상태 접근 방지)
+      naver.maps.Event.once(dmap, "init", function () {
+        dInited = true;
+        log("✓ Dynamic Map init 완료");
+        draw();
+      });
+      return;
     }
 
-    var olds = [];
-    dmap.data.forEach(function (f) { olds.push(f); });
-    olds.forEach(function (f) { try { dmap.data.removeFeature(f); } catch (e) {} });
-    if (dmarker) { dmarker.setMap(null); dmarker = null; }
-
-    dmap.data.addGeoJson({ type: "FeatureCollection", features: [feat] });
-    dmap.data.setStyle({
-      fillColor: "#1a73e8", fillOpacity: 0.12,
-      strokeColor: "#1a73e8", strokeOpacity: 0.95, strokeWeight: 2.5
-    });
-
-    dBounds = new naver.maps.LatLngBounds(
-      new naver.maps.LatLng(bb[1], bb[0]),
-      new naver.maps.LatLng(bb[3], bb[2])
-    );
-    dmap.fitBounds(dBounds, { top: 28, right: 28, bottom: 28, left: 28 });
-
-    dmarker = new naver.maps.Marker({
-      map: dmap,
-      position: new naver.maps.LatLng((bb[1] + bb[3]) / 2, (bb[0] + bb[2]) / 2),
-      title: "서울 " + name
-    });
-
-    setStatus("stD", "Dynamic Map · +/− 버튼으로 확대·축소 · 정렬 오차 없음");
+    if (dInited) draw();
+    else naver.maps.Event.once(dmap, "init", draw);
   }
 
 
