@@ -6,7 +6,7 @@
 <meta name="robots" content="noindex, nofollow">
 <title>지도 방식 비교 테스트 (A/B/C/D)</title>
 <style>
-  :root { --bg:#faf7f1; --card:#fff; --text:#3d3730; --muted:#8a8175; --line:#e6dfd3; --accent:#1a73e8; }
+  :root { --bg:#faf7f1; --card:#fff; --text:#3d3730; --muted:#8a8175; --line:#e6dfd3; }
   * { box-sizing:border-box; }
   body { margin:0; padding:20px; background:var(--bg); color:var(--text);
          font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif; }
@@ -25,18 +25,24 @@
   .card .desc { font-size:12.5px; color:var(--muted); margin:0 0 10px; line-height:1.5; }
   .stage { width:520px; height:400px; max-width:100%; position:relative;
            border-radius:12px; overflow:hidden; background:#eee7db; }
-  .stage img { display:block; width:100%; height:100%; object-fit:cover; }
-  .stage svg { display:block; width:100%; height:100%; }
-  .stage .ov { position:absolute; inset:0; }
   .status { font-size:12px; color:var(--muted); margin-top:8px; min-height:16px; }
   .status.err { color:#c0392b; }
-  /* B: 순수 SVG */
-  .svg-other { fill:#e3ddd2; stroke:#fff; stroke-width:1; }
+
+  /* ★ 수정: A와 C의 이미지에만 적용 (D의 네이버 타일 img를 건드리면 안 됨) */
+  #mapA, #mapC { display:block; width:100%; height:100%; object-fit:cover; }
+
+  /* ★ 수정: B의 SVG와 C의 오버레이 SVG에만 적용 */
+  #mapB > svg, #ovC > svg { display:block; width:100%; height:100%; }
+
+  #mapB, #ovC, #mapD { position:absolute; inset:0; }
+  #ovC { pointer-events:none; }
+
+  .svg-other  { fill:#e3ddd2; stroke:#fff; stroke-width:1; }
   .svg-target { fill:#1a73e8; fill-opacity:.16; stroke:#1a73e8; stroke-width:2.2; }
-  .svg-label { font-size:13px; fill:#1a3b6e; font-weight:700; text-anchor:middle; }
-  /* C: 지도 위 오버레이 */
-  .ov-target { fill:#1a73e8; fill-opacity:.14; stroke:#1a73e8; stroke-width:2.5;
-               stroke-linejoin:round; vector-effect:non-scaling-stroke; }
+  .svg-label  { font-size:13px; fill:#1a3b6e; font-weight:700; text-anchor:middle; }
+  .ov-target  { fill:#1a73e8; fill-opacity:.14; stroke:#1a73e8; stroke-width:2.5;
+                stroke-linejoin:round; vector-effect:non-scaling-stroke; }
+
   .log { margin-top:16px; background:var(--card); border:1px solid var(--line);
          border-radius:14px; padding:12px 14px; font-size:12.5px; color:var(--muted);
          line-height:1.7; white-space:pre-wrap; }
@@ -70,7 +76,7 @@
   <div class="card">
     <h2>B. SVG (GeoJSON 렌더링)</h2>
     <p class="desc">API 호출 0회. 경계가 가장 또렷하고 크롤러가 텍스트를 읽음. 대신 실제 지형·도로·지명이 없음.</p>
-    <div class="stage"><div id="mapB" class="ov"></div></div>
+    <div class="stage"><div id="mapB"></div></div>
     <div class="status" id="stB"></div>
   </div>
 
@@ -79,7 +85,7 @@
     <p class="desc">실사 지도 위에 경계선을 얹음. 정적이라 가볍지만 좌표 정렬이 어긋나면 보정 필요.</p>
     <div class="stage">
       <img id="mapC" alt="자치구 위치 지도">
-      <div class="ov" id="ovC"></div>
+      <div id="ovC"></div>
     </div>
     <div class="status" id="stC"></div>
   </div>
@@ -87,7 +93,7 @@
   <div class="card">
     <h2>D. Dynamic Map + GeoJSON ★</h2>
     <p class="desc">네이버 검색 결과 화면과 가장 비슷함. 확대·이동 가능, 정렬 오차 없음. JS 필요, 호출량 소모.</p>
-    <div class="stage"><div id="mapD" class="ov"></div></div>
+    <div class="stage"><div id="mapD"></div></div>
     <div class="status" id="stD"></div>
   </div>
 </div>
@@ -102,22 +108,21 @@
   var CLIENT_ID = "kizfnbhv3q";
   var W = 520, H = 400, PAD = 26;
 
-  // Static Map 호스트 후보 (앞에서부터 시도, 실패 시 자동 다음 후보)
   var STATIC_ENDPOINTS = [
     "https://maps.apigw.ntruss.com/map-static/v2/raster-cors",
     "https://maps.apigw.ntruss.com/map-static/v2/raster",
     "https://naveropenapi.apigw.ntruss.com/map-static/v2/raster-cors",
     "https://naveropenapi.apigw.ntruss.com/map-static/v2/raster"
   ];
-  // GeoJSON 후보 (같은 도메인 우선 → 실패 시 CDN)
   var GEOJSON_URLS = [
     "/korea-geography-quiz/gu/gu_11_seoul.geojson",
     "https://cdn.jsdelivr.net/gh/ttlmymo/korea-geography-quiz@main/gu/gu_11_seoul.geojson"
   ];
 
-  var logLines = [];
+  var logLines = [], authFailed = false;
   function log(s) { logLines.push(s); document.getElementById("log").textContent = logLines.join("\n"); }
   function setStatus(id, msg, isErr) {
+    if (id === "stD" && authFailed && !isErr) return;   // 인증 실패 메시지 덮어쓰기 방지
     var el = document.getElementById(id);
     el.textContent = msg; el.className = "status" + (isErr ? " err" : "");
   }
@@ -142,7 +147,6 @@
     });
     return b;
   }
-  // Web Mercator 픽셀 (타일 256px 기준) — Static Map 정렬용
   function wx(lon, z) { return (lon + 180) / 360 * 256 * Math.pow(2, z); }
   function wy(lat, z) {
     var s = Math.sin(lat * Math.PI / 180);
@@ -150,9 +154,8 @@
   }
   function fitZoom(bb, w, h, pad) {
     for (var z = 18; z >= 1; z--) {
-      var dw = wx(bb[2], z) - wx(bb[0], z);
-      var dh = wy(bb[1], z) - wy(bb[3], z);
-      if (dw <= w - pad * 2 && dh <= h - pad * 2) return z;
+      if (wx(bb[2], z) - wx(bb[0], z) <= w - pad * 2 &&
+          wy(bb[1], z) - wy(bb[3], z) <= h - pad * 2) return z;
     }
     return 1;
   }
@@ -174,28 +177,27 @@
   }
 
   /* ───────── GeoJSON 로드 ───────── */
-  var FEATURES = [], BY_NAME = {}, GEO_SRC = "";
+  var FEATURES = [], BY_NAME = {};
 
   function loadGeo(i) {
     if (i >= GEOJSON_URLS.length) { log("✗ GeoJSON 로드 실패 — 경로를 확인하세요."); return; }
     fetch(GEOJSON_URLS[i], { cache: "no-cache" })
       .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
       .then(function (gj) {
-        GEO_SRC = GEOJSON_URLS[i];
         FEATURES = gj.features || [];
         FEATURES.forEach(function (f) {
           var n = f.properties.sgg_nm || f.properties.full_nm || f.properties.SIG_KOR_NM;
           BY_NAME[n] = f;
         });
-        log("✓ GeoJSON: " + GEO_SRC);
-        log("  feature 수: " + FEATURES.length +
-            " / 지오메트리: " + FEATURES.filter(function (f) { return f.geometry.type === "MultiPolygon"; }).length +
-            "개 MultiPolygon, " + FEATURES.filter(function (f) { return f.geometry.type === "Polygon"; }).length + "개 Polygon");
+        log("✓ GeoJSON: " + GEOJSON_URLS[i]);
+        log("  feature " + FEATURES.length + "개 / MultiPolygon " +
+            FEATURES.filter(function (f) { return f.geometry.type === "MultiPolygon"; }).length +
+            ", Polygon " + FEATURES.filter(function (f) { return f.geometry.type === "Polygon"; }).length);
         buildSelect();
         initDynamic();
         render();
       })
-      .catch(function (e) { log("· 실패(" + GEOJSON_URLS[i] + "): " + e.message + " → 다음 후보 시도"); loadGeo(i + 1); });
+      .catch(function (e) { log("· 실패(" + GEOJSON_URLS[i] + "): " + e.message + " → 다음 후보"); loadGeo(i + 1); });
   }
 
   function buildSelect() {
@@ -213,13 +215,13 @@
   /* ───────── A + C: Static Map ───────── */
   var epIndex = 0, epResolved = false;
 
-  function staticUrl(centerLon, centerLat, level, withMarker) {
-    var p = ["w=" + W, "h=" + H, "center=" + centerLon.toFixed(6) + "," + centerLat.toFixed(6),
+  function staticUrl(lon, lat, level, withMarker) {
+    var p = ["w=" + W, "h=" + H, "center=" + lon.toFixed(6) + "," + lat.toFixed(6),
              "level=" + level, "maptype=basic", "format=png", "scale=2",
              "X-NCP-APIGW-API-KEY-ID=" + CLIENT_ID];
     if (withMarker) {
       p.splice(6, 0, "markers=" + encodeURIComponent(
-        "type:d|size:mid|pos:" + centerLon.toFixed(6) + " " + centerLat.toFixed(6)));
+        "type:d|size:mid|pos:" + lon.toFixed(6) + " " + lat.toFixed(6)));
     }
     return STATIC_ENDPOINTS[epIndex] + "?" + p.join("&");
   }
@@ -232,7 +234,7 @@
         log("· Static Map 후보 전환 → " + STATIC_ENDPOINTS[epIndex]);
         loadStatic(imgId, statusId, lon, lat, level, withMarker, onOk);
       } else {
-        setStatus(statusId, "Static Map 로드 실패 — 콘솔에서 Static Map 이용 신청 및 Web 서비스 URL(https://ttlmymo.github.io) 등록을 확인하세요.", true);
+        setStatus(statusId, "Static Map 로드 실패 — 콘솔에서 Static Map 이용 신청 및 Web 서비스 URL(https://ttlmymo.github.io) 등록 확인 필요", true);
       }
     };
     img.onload = function () {
@@ -247,8 +249,9 @@
   var dmap = null, dmarker = null, dReady = false;
 
   window.navermap_authFailure = function () {
-    setStatus("stD", "Dynamic Map 인증 실패 — 스크립트 파라미터(ncpKeyId/ncpClientId) 또는 도메인 등록을 확인하세요.", true);
-    log("✗ Dynamic Map 인증 실패");
+    authFailed = true;
+    setStatus("stD", "Dynamic Map 인증 실패 — Client ID 또는 Web 서비스 URL 등록을 확인하세요.", true);
+    log("✗ Dynamic Map 인증 실패 (navermap_authFailure)");
   };
 
   function loadMapsJs(param, done) {
@@ -269,16 +272,27 @@
     });
   }
 
-  function renderD(name, feat) {
+  function renderD(name, feat, bb) {
     if (!dReady || !window.naver || !naver.maps) return;
-    if (!dmap) {
-      dmap = new naver.maps.Map("mapD", {
-        center: new naver.maps.LatLng(37.5665, 126.9780),
-        zoom: 11, scrollWheel: false, mapDataControl: false, logoControl: true
-      });
+    var el = document.getElementById("mapD");
+    if (!el.offsetWidth || !el.offsetHeight) {
+      setStatus("stD", "지도 컨테이너 크기가 0입니다 (" + el.offsetWidth + "×" + el.offsetHeight + ")", true);
+      return;
     }
-    var olds = []; dmap.data.forEach(function (f) { olds.push(f); });
-    olds.forEach(function (f) { dmap.data.removeFeature(f); });
+
+    if (!dmap) {
+      dmap = new naver.maps.Map(el, {
+        center: new naver.maps.LatLng(37.5665, 126.9780),
+        zoom: 11, scrollWheel: false, mapDataControl: false, zoomControl: true
+      });
+      log("✓ Dynamic Map 생성 (" + el.offsetWidth + "×" + el.offsetHeight + ")");
+    }
+
+    var olds = [];
+    dmap.data.forEach(function (f) { olds.push(f); });
+    olds.forEach(function (f) {
+      try { dmap.data.removeFeature(f); } catch (e) { log("· removeFeature 실패: " + e.message); }
+    });
     if (dmarker) { dmarker.setMap(null); dmarker = null; }
 
     dmap.data.addGeoJson({ type: "FeatureCollection", features: [feat] });
@@ -286,13 +300,20 @@
       fillColor: "#1a73e8", fillOpacity: 0.12,
       strokeColor: "#1a73e8", strokeOpacity: 0.95, strokeWeight: 2.5
     });
-    dmap.data.forEach(function (f) {
-      var b = f.getBounds();
-      if (!b) return;
-      dmap.fitBounds(b, { top: 28, right: 28, bottom: 28, left: 28 });
-      dmarker = new naver.maps.Marker({ map: dmap, position: b.getCenter(), title: "서울 " + name });
+
+    // GeoJSON bbox로 직접 bounds 계산 (Feature.getBounds 의존 제거)
+    var bounds = new naver.maps.LatLngBounds(
+      new naver.maps.LatLng(bb[1], bb[0]),
+      new naver.maps.LatLng(bb[3], bb[2])
+    );
+    dmap.fitBounds(bounds, { top: 28, right: 28, bottom: 28, left: 28 });
+    dmarker = new naver.maps.Marker({
+      map: dmap,
+      position: new naver.maps.LatLng((bb[1] + bb[3]) / 2, (bb[0] + bb[2]) / 2),
+      title: "서울 " + name
     });
-    setStatus("stD", "Dynamic Map · 경계 정렬 오차 없음 · API 호출 1회(+타일)");
+
+    setStatus("stD", "Dynamic Map · 경계 정렬 오차 없음 · 확대/이동 가능");
   }
 
   /* ───────── 렌더 ───────── */
@@ -311,19 +332,17 @@
     /* A */
     loadStatic("mapA", "stA", cLon, cLat, level, true);
 
-    /* B — 서울 전체를 회색으로, 대상 구만 강조 */
+    /* B */
     var allBb = bboxOf(FEATURES.map(function (f) { return f.geometry; }));
     var k = Math.cos(37.5665 * Math.PI / 180);
     var gw = (allBb[2] - allBb[0]) * k, gh = (allBb[3] - allBb[1]);
     var s = Math.min((W - PAD * 2) / gw, (H - PAD * 2) / gh);
     var ox = (W - gw * s) / 2, oy = (H - gh * s) / 2;
-    function projB(lon, lat) {
-      return [ox + (lon - allBb[0]) * k * s, oy + (allBb[3] - lat) * s];
-    }
+    function projB(lon, lat) { return [ox + (lon - allBb[0]) * k * s, oy + (allBb[3] - lat) * s]; }
+
     var svgB = '<svg viewBox="0 0 ' + W + ' ' + H + '" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="서울 ' + name + ' 위치">';
     FEATURES.forEach(function (f) {
-      var n = f.properties.sgg_nm;
-      if (n === name) return;
+      if (f.properties.sgg_nm === name) return;
       svgB += '<path class="svg-other" d="' + pathFrom(f.geometry, projB) + '"/>';
     });
     svgB += '<path class="svg-target" d="' + pathFrom(feat.geometry, projB) + '"/>';
@@ -332,7 +351,7 @@
     document.getElementById("mapB").innerHTML = svgB;
     setStatus("stB", "API 호출 0회 · SVG " + new Blob([svgB]).size.toLocaleString() + " bytes");
 
-    /* C — Static Map 위 Mercator 정렬 오버레이 */
+    /* C */
     var z = level, px0 = wx(cLon, z) - W / 2 - dx, py0 = wy(cLat, z) - H / 2 - dy;
     function projC(lon, lat) { return [wx(lon, z) - px0, wy(lat, z) - py0]; }
     document.getElementById("ovC").innerHTML =
@@ -343,7 +362,7 @@
     });
 
     /* D */
-    renderD(name, feat);
+    renderD(name, feat, bb);
   }
 
   loadGeo(0);
