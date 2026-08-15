@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex, nofollow">
+<title>네이버 Dynamic Map 최소 테스트</title>
+<style>#map{width:520px;height:400px;max-width:100%;background:#eee;}
+       #msg{font:14px/1.7 sans-serif;white-space:pre-wrap;margin-top:10px;}</style>
+</head>
+<body>
+<div id="map"></div>
+<div id="msg">로드 중…</div>
+
+<script>
+  function say(s){ document.getElementById('msg').textContent += "\n" + s; }
+  window.navermap_authFailure = function(){ say("✗ 인증 실패 (navermap_authFailure 호출됨)"); };
+  window.onerror = function(m,src,l){ say("✗ JS 에러: " + m + " @" + l); };
+</script>
+
+<script src="https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=kizfnbhv3q"
+        onload="say('✓ maps.js 로드 성공')"
+        onerror="say('✗ maps.js 로드 실패 (네트워크/차단)')"></script>
+
+<script>
+  setTimeout(function () {
+    if (!window.naver || !naver.maps) { say("✗ naver.maps 객체 없음"); return; }
+    var el = document.getElementById('map');
+    say("컨테이너 크기: " + el.offsetWidth + "×" + el.offsetHeight);
+    new naver.maps.Map(el, {
+      center: new naver.maps.LatLng(37.5172, 127.0473),  // 강남구
+      zoom: 12
+    });
+    say("✓ Map 생성 완료 — 지도가 보이면 API는 정상입니다");
+  }, 300);
+</script>
+</body>
+</html>
