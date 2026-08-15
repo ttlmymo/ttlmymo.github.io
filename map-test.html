@@ -42,7 +42,8 @@
   /* 네이버가 #mapD 안에 심는 img/svg를 건드리지 않도록 선택자를 좁게 유지 */
   #mapA, #mapC { display:block; width:100%; height:100%; object-fit:cover; }
   #mapB > svg, #ovC > svg { display:block; width:100%; height:100%; }
-  #mapB, #ovC, #mapD { position:absolute; inset:0; }
+  #mapB, #ovC { position:absolute; inset:0; }
+  #mapD { position:relative; width:100%; height:100%; }
   #ovC { pointer-events:none; }
 
   .svg-other  { fill:#e3ddd2; stroke:#fff; stroke-width:1; }
