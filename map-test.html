@@ -1,146 +1,353 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="robots" content="noindex,nofollow">
-<title>지도 방식 비교 (임시)</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>지도 방식 비교 테스트 (A/B/C/D)</title>
 <style>
-  body{font-family:system-ui,sans-serif;background:#faf7f0;color:#3d3730;
-       max-width:1200px;margin:0 auto;padding:24px}
-  h2{font-size:17px;margin:0 0 4px}
-  .note{font-size:13px;color:#8a8072;margin:0 0 10px}
-  .row{display:flex;flex-wrap:wrap;gap:24px}
-  .col{flex:1 1 340px}
-  .box{background:#fff;border:1px solid #e5ddcd;border-radius:12px;
-       padding:12px;position:relative}
-  .box img,.box svg{width:100%;height:auto;display:block;border-radius:6px}
-  .overlay{position:relative}
-  .overlay svg{position:absolute;inset:12px;width:calc(100% - 24px);height:auto}
-  .err{color:#b04a3a;font-size:13px}
-  select{padding:6px;font-size:15px;margin-bottom:16px}
-  .oth{fill:#e2dbcc;stroke:#d0c6b2;stroke-width:1.2}
-  .tgt{fill:#9cb98f;stroke:#6f8a63;stroke-width:2.4}
-  .oth-t{fill:none;stroke:#fff;stroke-width:1.2;opacity:.55}
-  .tgt-t{fill:rgba(156,185,143,.45);stroke:#4d7a3a;stroke-width:2.6}
-  text{font-size:19px;fill:#fff;text-anchor:middle;dominant-baseline:middle;
-       paint-order:stroke;stroke:#4a4a4a;stroke-width:3px}
+  :root { --bg:#faf7f1; --card:#fff; --text:#3d3730; --muted:#8a8175; --line:#e6dfd3; --accent:#1a73e8; }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:20px; background:var(--bg); color:var(--text);
+         font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif; }
+  h1 { font-size:20px; margin:0 0 4px; }
+  .sub { color:var(--muted); font-size:13px; margin:0 0 16px; }
+  .toolbar { display:flex; flex-wrap:wrap; gap:10px; align-items:center;
+             background:var(--card); border:1px solid var(--line); border-radius:14px;
+             padding:12px 14px; margin-bottom:16px; }
+  .toolbar label { font-size:13px; color:var(--muted); }
+  select, input[type=number] { font-size:15px; padding:6px 10px; border:1px solid var(--line);
+             border-radius:8px; background:#fff; color:var(--text); }
+  input[type=number] { width:70px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(520px, 1fr)); gap:16px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:14px; }
+  .card h2 { font-size:16px; margin:0 0 2px; }
+  .card .desc { font-size:12.5px; color:var(--muted); margin:0 0 10px; line-height:1.5; }
+  .stage { width:520px; height:400px; max-width:100%; position:relative;
+           border-radius:12px; overflow:hidden; background:#eee7db; }
+  .stage img { display:block; width:100%; height:100%; object-fit:cover; }
+  .stage svg { display:block; width:100%; height:100%; }
+  .stage .ov { position:absolute; inset:0; }
+  .status { font-size:12px; color:var(--muted); margin-top:8px; min-height:16px; }
+  .status.err { color:#c0392b; }
+  /* B: 순수 SVG */
+  .svg-other { fill:#e3ddd2; stroke:#fff; stroke-width:1; }
+  .svg-target { fill:#1a73e8; fill-opacity:.16; stroke:#1a73e8; stroke-width:2.2; }
+  .svg-label { font-size:13px; fill:#1a3b6e; font-weight:700; text-anchor:middle; }
+  /* C: 지도 위 오버레이 */
+  .ov-target { fill:#1a73e8; fill-opacity:.14; stroke:#1a73e8; stroke-width:2.5;
+               stroke-linejoin:round; vector-effect:non-scaling-stroke; }
+  .log { margin-top:16px; background:var(--card); border:1px solid var(--line);
+         border-radius:14px; padding:12px 14px; font-size:12.5px; color:var(--muted);
+         line-height:1.7; white-space:pre-wrap; }
+  @media (max-width:600px){ body{padding:12px;} .stage{height:320px;} }
 </style>
 </head>
 <body>
-<h1 style="font-size:20px">구별 페이지 위치 지도 — 방식 비교</h1>
 
-<label>자치구 선택: <select id="pick"></select></label>
+<h1>서울 자치구 위치 지도 — 방식 비교</h1>
+<p class="sub">A: Static Map만 · B: GeoJSON SVG만 · C: Static Map + SVG 오버레이 · D: Dynamic Map + GeoJSON Data 레이어</p>
 
-<div class="row">
-  <div class="col">
-    <h2>A. Static Map (네이버 실제 지도)</h2>
-    <p class="note">지형·도로·지명이 보임. 구 경계는 표시 안 됨.</p>
-    <div class="box"><img id="stat" alt="위치 지도"><p id="err" class="err"></p></div>
+<div class="toolbar">
+  <label for="gu">자치구</label>
+  <select id="gu"><option>불러오는 중…</option></select>
+  <label for="lvOff">C 줌 보정</label>
+  <input type="number" id="lvOff" value="0" step="1" min="-3" max="3">
+  <label for="dxOff">C X보정(px)</label>
+  <input type="number" id="dxOff" value="0" step="1">
+  <label for="dyOff">C Y보정(px)</label>
+  <input type="number" id="dyOff" value="0" step="1">
+</div>
+
+<div class="grid">
+  <div class="card">
+    <h2>A. Static Map (이미지 1장)</h2>
+    <p class="desc">네이버 실사 지도 + 마커만. 경계선 없음. API 호출 1회, JS 불필요, 가장 가벼움.</p>
+    <div class="stage"><img id="mapA" alt="자치구 위치 정적 지도"></div>
+    <div class="status" id="stA"></div>
   </div>
-  <div class="col">
-    <h2>B. SVG (경계 도형)</h2>
-    <p class="note">구 모양이 또렷함. 주변 지형 정보는 없음.</p>
-    <div class="box"><svg id="svg"></svg></div>
+
+  <div class="card">
+    <h2>B. SVG (GeoJSON 렌더링)</h2>
+    <p class="desc">API 호출 0회. 경계가 가장 또렷하고 크롤러가 텍스트를 읽음. 대신 실제 지형·도로·지명이 없음.</p>
+    <div class="stage"><div id="mapB" class="ov"></div></div>
+    <div class="status" id="stB"></div>
   </div>
-  <div class="col">
-    <h2>C. Static Map + SVG 겹치기</h2>
-    <p class="note">실제 지도 위에 경계를 반투명으로 올림.</p>
-    <div class="box overlay"><img id="stat2" alt="위치 지도"><svg id="svg2"></svg></div>
+
+  <div class="card">
+    <h2>C. Static Map + SVG 오버레이</h2>
+    <p class="desc">실사 지도 위에 경계선을 얹음. 정적이라 가볍지만 좌표 정렬이 어긋나면 보정 필요.</p>
+    <div class="stage">
+      <img id="mapC" alt="자치구 위치 지도">
+      <div class="ov" id="ovC"></div>
+    </div>
+    <div class="status" id="stC"></div>
+  </div>
+
+  <div class="card">
+    <h2>D. Dynamic Map + GeoJSON ★</h2>
+    <p class="desc">네이버 검색 결과 화면과 가장 비슷함. 확대·이동 가능, 정렬 오차 없음. JS 필요, 호출량 소모.</p>
+    <div class="stage"><div id="mapD" class="ov"></div></div>
+    <div class="status" id="stD"></div>
   </div>
 </div>
 
+<div class="log" id="log"></div>
+
 <script>
-/* ── 여기 두 줄만 본인 값으로 ── */
-const CLIENT_ID = "kizfnbhv3q";
-const HOST = "https://maps.apigw.ntruss.com";  // 안 뜨면 아래 주석 참고
-/* 구 상품이면: https://naveropenapi.apigw.ntruss.com */
+(function () {
+  "use strict";
 
-const W = 520, H = 400, LEVEL = 10;
-const GEO = "https://cdn.jsdelivr.net/gh/ttlmymo/korea-geography-quiz@main/gu/gu_11_seoul.geojson";
+  /* ───────── 설정 ───────── */
+  var CLIENT_ID = "kizfnbhv3q";
+  var W = 520, H = 400, PAD = 26;
 
-const rings = g => g.type === "Polygon" ? g.coordinates : g.coordinates.flat();
-function centroid(g){
-  let r = rings(g).reduce((a,b) => a.length > b.length ? a : b);
-  let A=0,x=0,y=0;
-  for(let i=0,j=r.length-1;i<r.length;j=i++){
-    const f = r[j][0]*r[i][1] - r[i][0]*r[j][1];
-    A += f; x += (r[j][0]+r[i][0])*f; y += (r[j][1]+r[i][1])*f;
+  // Static Map 호스트 후보 (앞에서부터 시도, 실패 시 자동 다음 후보)
+  var STATIC_ENDPOINTS = [
+    "https://maps.apigw.ntruss.com/map-static/v2/raster-cors",
+    "https://maps.apigw.ntruss.com/map-static/v2/raster",
+    "https://naveropenapi.apigw.ntruss.com/map-static/v2/raster-cors",
+    "https://naveropenapi.apigw.ntruss.com/map-static/v2/raster"
+  ];
+  // GeoJSON 후보 (같은 도메인 우선 → 실패 시 CDN)
+  var GEOJSON_URLS = [
+    "/korea-geography-quiz/gu/gu_11_seoul.geojson",
+    "https://cdn.jsdelivr.net/gh/ttlmymo/korea-geography-quiz@main/gu/gu_11_seoul.geojson"
+  ];
+
+  var logLines = [];
+  function log(s) { logLines.push(s); document.getElementById("log").textContent = logLines.join("\n"); }
+  function setStatus(id, msg, isErr) {
+    var el = document.getElementById(id);
+    el.textContent = msg; el.className = "status" + (isErr ? " err" : "");
   }
-  A *= 3;
-  return A ? [x/A, y/A] : r[0];
-}
 
-/* --- B용: 등거리 투영 (서울 전체를 뷰박스에 꽉 채움) --- */
-const K = Math.cos(37.5665*Math.PI/180);
-/* --- C용: 웹 메르카토르 (Static Map과 좌표계 일치) --- */
-const world = 256 * 2**LEVEL;
-const mx = lng => (lng+180)/360*world;
-const my = lat => (1 - Math.log(Math.tan(lat*Math.PI/180)
-                 + 1/Math.cos(lat*Math.PI/180))/Math.PI)/2*world;
-
-let feats = [];
-fetch(GEO).then(r=>r.json()).then(j=>{
-  feats = j.features;
-  const sel = document.getElementById("pick");
-  feats.map(f=>f.properties.sgg_nm).sort((a,b)=>a.localeCompare(b,"ko"))
-       .forEach(n=>sel.add(new Option(n,n)));
-  sel.value = "강남구";
-  sel.onchange = () => draw(sel.value);
-  draw("강남구");
-});
-
-function pathD(g, proj){
-  return rings(g).map(r=>{
-    let d="", p=null;
-    for(const [lng,lat] of r){
-      const [x,y] = proj(lng,lat);
-      const s = x.toFixed(1)+","+y.toFixed(1);
-      if(s===p) continue;
-      d += (d?"L":"M")+s; p=s;
+  /* ───────── 좌표 유틸 ───────── */
+  function eachRing(geom, cb) {
+    if (!geom) return;
+    if (geom.type === "Polygon") geom.coordinates.forEach(function (r) { cb(r); });
+    else if (geom.type === "MultiPolygon") geom.coordinates.forEach(function (p) { p.forEach(function (r) { cb(r); }); });
+  }
+  function bboxOf(geoms) {
+    var b = [180, 90, -180, -90];
+    geoms.forEach(function (g) {
+      eachRing(g, function (ring) {
+        ring.forEach(function (c) {
+          if (c[0] < b[0]) b[0] = c[0];
+          if (c[1] < b[1]) b[1] = c[1];
+          if (c[0] > b[2]) b[2] = c[0];
+          if (c[1] > b[3]) b[3] = c[1];
+        });
+      });
+    });
+    return b;
+  }
+  // Web Mercator 픽셀 (타일 256px 기준) — Static Map 정렬용
+  function wx(lon, z) { return (lon + 180) / 360 * 256 * Math.pow(2, z); }
+  function wy(lat, z) {
+    var s = Math.sin(lat * Math.PI / 180);
+    return (0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI)) * 256 * Math.pow(2, z);
+  }
+  function fitZoom(bb, w, h, pad) {
+    for (var z = 18; z >= 1; z--) {
+      var dw = wx(bb[2], z) - wx(bb[0], z);
+      var dh = wy(bb[1], z) - wy(bb[3], z);
+      if (dw <= w - pad * 2 && dh <= h - pad * 2) return z;
     }
-    return d+"Z";
-  }).join(" ");
-}
-
-function draw(name){
-  const tgt = feats.find(f=>f.properties.sgg_nm===name);
-  const [clng,clat] = centroid(tgt.geometry);
-
-  /* A, C : Static Map */
-  const url = `${HOST}/map-static/v2/raster-cors?w=${W}&h=${H}`
-            + `&center=${clng.toFixed(6)},${clat.toFixed(6)}`
-            + `&level=${LEVEL}&X-NCP-APIGW-API-KEY-ID=${CLIENT_ID}`;
-  const im = document.getElementById("stat"), im2 = document.getElementById("stat2");
-  im.onerror = () => document.getElementById("err").textContent =
-    "이미지 실패 → HOST 주소 또는 Web 서비스 URL 등록을 확인하세요.";
-  im.src = url; im2.src = url;
-
-  /* B : 서울 전체 등거리 투영 */
-  let mnx=1e9,mxx=-1e9,mny=1e9,mxy=-1e9;
-  for(const f of feats) for(const r of rings(f.geometry)) for(const [lng,lat] of r){
-    const x=lng*K, y=-lat;
-    mnx=Math.min(mnx,x); mxx=Math.max(mxx,x);
-    mny=Math.min(mny,y); mxy=Math.max(mxy,y);
+    return 1;
   }
-  const sc = 1000/(mxx-mnx), vh = Math.round((mxy-mny)*sc);
-  const pB = (lng,lat)=>[(lng*K-mnx)*sc, (-lat-mny)*sc];
-  const svg = document.getElementById("svg");
-  svg.setAttribute("viewBox",`0 0 1000 ${vh}`);
-  svg.innerHTML = feats.map(f=>
-    `<path class="${f===tgt?"tgt":"oth"}" fill-rule="evenodd"
-      d="${pathD(f.geometry,pB)}"/>`).join("")
-    + `<text x="${pB(clng,clat)[0]}" y="${pB(clng,clat)[1]}">${name}</text>`;
+  function pathFrom(geom, proj) {
+    var d = "";
+    eachRing(geom, function (ring) {
+      var prev = null;
+      for (var i = 0; i < ring.length; i++) {
+        var p = proj(ring[i][0], ring[i][1]);
+        var x = Math.round(p[0] * 10) / 10, y = Math.round(p[1] * 10) / 10;
+        if (prev && i !== ring.length - 1 &&
+            Math.abs(x - prev[0]) < 0.3 && Math.abs(y - prev[1]) < 0.3) continue;
+        d += (prev ? "L" : "M") + x + " " + y + " ";
+        prev = [x, y];
+      }
+      d += "Z ";
+    });
+    return d.trim();
+  }
 
-  /* C : Static Map과 같은 메르카토르 좌표계 */
-  const ox = mx(clng)-W/2, oy = my(clat)-H/2;
-  const pC = (lng,lat)=>[mx(lng)-ox, my(lat)-oy];
-  const svg2 = document.getElementById("svg2");
-  svg2.setAttribute("viewBox",`0 0 ${W} ${H}`);
-  svg2.innerHTML = feats.map(f=>
-    `<path class="${f===tgt?"tgt-t":"oth-t"}" fill-rule="evenodd"
-      d="${pathD(f.geometry,pC)}"/>`).join("");
-}
+  /* ───────── GeoJSON 로드 ───────── */
+  var FEATURES = [], BY_NAME = {}, GEO_SRC = "";
+
+  function loadGeo(i) {
+    if (i >= GEOJSON_URLS.length) { log("✗ GeoJSON 로드 실패 — 경로를 확인하세요."); return; }
+    fetch(GEOJSON_URLS[i], { cache: "no-cache" })
+      .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+      .then(function (gj) {
+        GEO_SRC = GEOJSON_URLS[i];
+        FEATURES = gj.features || [];
+        FEATURES.forEach(function (f) {
+          var n = f.properties.sgg_nm || f.properties.full_nm || f.properties.SIG_KOR_NM;
+          BY_NAME[n] = f;
+        });
+        log("✓ GeoJSON: " + GEO_SRC);
+        log("  feature 수: " + FEATURES.length +
+            " / 지오메트리: " + FEATURES.filter(function (f) { return f.geometry.type === "MultiPolygon"; }).length +
+            "개 MultiPolygon, " + FEATURES.filter(function (f) { return f.geometry.type === "Polygon"; }).length + "개 Polygon");
+        buildSelect();
+        initDynamic();
+        render();
+      })
+      .catch(function (e) { log("· 실패(" + GEOJSON_URLS[i] + "): " + e.message + " → 다음 후보 시도"); loadGeo(i + 1); });
+  }
+
+  function buildSelect() {
+    var sel = document.getElementById("gu");
+    var names = Object.keys(BY_NAME).sort(function (a, b) { return a.localeCompare(b, "ko"); });
+    sel.innerHTML = names.map(function (n) {
+      return '<option value="' + n + '"' + (n === "강남구" ? " selected" : "") + ">" + n + "</option>";
+    }).join("");
+    sel.addEventListener("change", render);
+    ["lvOff", "dxOff", "dyOff"].forEach(function (id) {
+      document.getElementById(id).addEventListener("change", render);
+    });
+  }
+
+  /* ───────── A + C: Static Map ───────── */
+  var epIndex = 0, epResolved = false;
+
+  function staticUrl(centerLon, centerLat, level, withMarker) {
+    var p = ["w=" + W, "h=" + H, "center=" + centerLon.toFixed(6) + "," + centerLat.toFixed(6),
+             "level=" + level, "maptype=basic", "format=png", "scale=2",
+             "X-NCP-APIGW-API-KEY-ID=" + CLIENT_ID];
+    if (withMarker) {
+      p.splice(6, 0, "markers=" + encodeURIComponent(
+        "type:d|size:mid|pos:" + centerLon.toFixed(6) + " " + centerLat.toFixed(6)));
+    }
+    return STATIC_ENDPOINTS[epIndex] + "?" + p.join("&");
+  }
+
+  function loadStatic(imgId, statusId, lon, lat, level, withMarker, onOk) {
+    var img = document.getElementById(imgId);
+    img.onerror = function () {
+      if (!epResolved && epIndex < STATIC_ENDPOINTS.length - 1) {
+        epIndex++;
+        log("· Static Map 후보 전환 → " + STATIC_ENDPOINTS[epIndex]);
+        loadStatic(imgId, statusId, lon, lat, level, withMarker, onOk);
+      } else {
+        setStatus(statusId, "Static Map 로드 실패 — 콘솔에서 Static Map 이용 신청 및 Web 서비스 URL(https://ttlmymo.github.io) 등록을 확인하세요.", true);
+      }
+    };
+    img.onload = function () {
+      if (!epResolved) { epResolved = true; log("✓ Static Map 엔드포인트: " + STATIC_ENDPOINTS[epIndex]); }
+      setStatus(statusId, "level " + level + " · " + W + "×" + H + " · API 호출 1회");
+      if (onOk) onOk();
+    };
+    img.src = staticUrl(lon, lat, level, withMarker);
+  }
+
+  /* ───────── D: Dynamic Map ───────── */
+  var dmap = null, dmarker = null, dReady = false;
+
+  window.navermap_authFailure = function () {
+    setStatus("stD", "Dynamic Map 인증 실패 — 스크립트 파라미터(ncpKeyId/ncpClientId) 또는 도메인 등록을 확인하세요.", true);
+    log("✗ Dynamic Map 인증 실패");
+  };
+
+  function loadMapsJs(param, done) {
+    var s = document.createElement("script");
+    s.src = "https://oapi.map.naver.com/openapi/v3/maps.js?" + param + "=" + CLIENT_ID;
+    s.onload = function () { log("✓ maps.js 로드 (" + param + ")"); done(true); };
+    s.onerror = function () { log("· maps.js 실패 (" + param + ")"); done(false); };
+    document.head.appendChild(s);
+  }
+
+  function initDynamic() {
+    loadMapsJs("ncpKeyId", function (ok) {
+      if (ok && window.naver && naver.maps) { dReady = true; render(); return; }
+      loadMapsJs("ncpClientId", function (ok2) {
+        if (ok2 && window.naver && naver.maps) { dReady = true; render(); }
+        else setStatus("stD", "maps.js를 불러오지 못했습니다.", true);
+      });
+    });
+  }
+
+  function renderD(name, feat) {
+    if (!dReady || !window.naver || !naver.maps) return;
+    if (!dmap) {
+      dmap = new naver.maps.Map("mapD", {
+        center: new naver.maps.LatLng(37.5665, 126.9780),
+        zoom: 11, scrollWheel: false, mapDataControl: false, logoControl: true
+      });
+    }
+    var olds = []; dmap.data.forEach(function (f) { olds.push(f); });
+    olds.forEach(function (f) { dmap.data.removeFeature(f); });
+    if (dmarker) { dmarker.setMap(null); dmarker = null; }
+
+    dmap.data.addGeoJson({ type: "FeatureCollection", features: [feat] });
+    dmap.data.setStyle({
+      fillColor: "#1a73e8", fillOpacity: 0.12,
+      strokeColor: "#1a73e8", strokeOpacity: 0.95, strokeWeight: 2.5
+    });
+    dmap.data.forEach(function (f) {
+      var b = f.getBounds();
+      if (!b) return;
+      dmap.fitBounds(b, { top: 28, right: 28, bottom: 28, left: 28 });
+      dmarker = new naver.maps.Marker({ map: dmap, position: b.getCenter(), title: "서울 " + name });
+    });
+    setStatus("stD", "Dynamic Map · 경계 정렬 오차 없음 · API 호출 1회(+타일)");
+  }
+
+  /* ───────── 렌더 ───────── */
+  function render() {
+    var name = document.getElementById("gu").value;
+    var feat = BY_NAME[name];
+    if (!feat) return;
+
+    var bb = bboxOf([feat.geometry]);
+    var cLon = (bb[0] + bb[2]) / 2, cLat = (bb[1] + bb[3]) / 2;
+    var lvOff = parseInt(document.getElementById("lvOff").value, 10) || 0;
+    var dx = parseInt(document.getElementById("dxOff").value, 10) || 0;
+    var dy = parseInt(document.getElementById("dyOff").value, 10) || 0;
+    var level = fitZoom(bb, W, H, PAD) + lvOff;
+
+    /* A */
+    loadStatic("mapA", "stA", cLon, cLat, level, true);
+
+    /* B — 서울 전체를 회색으로, 대상 구만 강조 */
+    var allBb = bboxOf(FEATURES.map(function (f) { return f.geometry; }));
+    var k = Math.cos(37.5665 * Math.PI / 180);
+    var gw = (allBb[2] - allBb[0]) * k, gh = (allBb[3] - allBb[1]);
+    var s = Math.min((W - PAD * 2) / gw, (H - PAD * 2) / gh);
+    var ox = (W - gw * s) / 2, oy = (H - gh * s) / 2;
+    function projB(lon, lat) {
+      return [ox + (lon - allBb[0]) * k * s, oy + (allBb[3] - lat) * s];
+    }
+    var svgB = '<svg viewBox="0 0 ' + W + ' ' + H + '" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="서울 ' + name + ' 위치">';
+    FEATURES.forEach(function (f) {
+      var n = f.properties.sgg_nm;
+      if (n === name) return;
+      svgB += '<path class="svg-other" d="' + pathFrom(f.geometry, projB) + '"/>';
+    });
+    svgB += '<path class="svg-target" d="' + pathFrom(feat.geometry, projB) + '"/>';
+    var cB = projB(cLon, cLat);
+    svgB += '<text class="svg-label" x="' + cB[0].toFixed(1) + '" y="' + (cB[1] + 4).toFixed(1) + '">' + name + '</text></svg>';
+    document.getElementById("mapB").innerHTML = svgB;
+    setStatus("stB", "API 호출 0회 · SVG " + new Blob([svgB]).size.toLocaleString() + " bytes");
+
+    /* C — Static Map 위 Mercator 정렬 오버레이 */
+    var z = level, px0 = wx(cLon, z) - W / 2 - dx, py0 = wy(cLat, z) - H / 2 - dy;
+    function projC(lon, lat) { return [wx(lon, z) - px0, wy(lat, z) - py0]; }
+    document.getElementById("ovC").innerHTML =
+      '<svg viewBox="0 0 ' + W + ' ' + H + '" xmlns="http://www.w3.org/2000/svg">' +
+      '<path class="ov-target" d="' + pathFrom(feat.geometry, projC) + '"/></svg>';
+    loadStatic("mapC", "stC", cLon, cLat, level, false, function () {
+      setStatus("stC", "level " + level + " · 어긋나면 위 보정값 조절 · API 호출 1회");
+    });
+
+    /* D */
+    renderD(name, feat);
+  }
+
+  loadGeo(0);
+})();
 </script>
 </body>
 </html>
