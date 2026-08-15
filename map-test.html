@@ -16,6 +16,8 @@
 </script>
 <script src="https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=kizfnbhv3q"></script>
 
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet">
 <style>
   :root { --bg:#faf7f1; --card:#fff; --text:#3d3730; --muted:#8a8175; --line:#e6dfd3; }
   * { box-sizing:border-box; }
@@ -56,6 +58,47 @@
          border-radius:14px; padding:12px 14px; font-size:12.5px; color:var(--muted);
          line-height:1.7; white-space:pre-wrap; }
   @media (max-width:600px){ body{padding:12px;} .stage{height:320px;} }
+
+  /* ── 실제 적용 미리보기 (D) ───────────────────────── */
+  .card.full { grid-column: 1 / -1; }
+
+  .preview{
+    background:#e8e2d5; border-radius:16px; padding:24px 20px;
+    font-family:"Jua",-apple-system,"Malgun Gothic",sans-serif;
+    color:#5f5749; line-height:1.9;
+  }
+  .preview-inner{ max-width:820px; margin:0 auto; }
+  .preview h3.pv-h1{ font-size:29px; font-weight:400; margin:0 0 10px; }
+  .preview p.pv-lead{ font-size:15px; color:#a59c89; margin:0 0 22px; }
+  .preview .pv-sec{
+    background:#f0ebe0; border-radius:22px; padding:24px 26px;
+    box-shadow:0 8px 20px rgba(150,135,108,.18);
+  }
+  .preview .pv-sec h4{
+    font-size:20px; font-weight:400; color:#8aa97e; margin:0 0 12px;
+  }
+  .preview .pv-sec p{ font-size:15.5px; margin:0 0 12px; }
+
+  #mapD{
+    position:relative; width:100%; height:420px;
+    border-radius:14px; overflow:hidden; background:#e8e2d5;
+  }
+  .pv-cap{ font-size:12px; color:#a59c89; margin:6px 0 0; text-align:center; }
+  .pv-actions{ display:flex; justify-content:flex-end; margin-top:10px; }
+  .pv-btn{
+    font-family:inherit; font-size:13.5px; color:#5f5749;
+    background:#e8e2d5; border:1px solid #d8cfbd; border-radius:12px;
+    padding:8px 16px; cursor:pointer; line-height:1.4;
+  }
+  .pv-btn:hover{ background:#ded7c8; }
+  .pv-btn:focus-visible{ outline:3px solid #8aa97e; outline-offset:2px; }
+
+  @media(max-width:600px){
+    .preview{ padding:16px 12px; }
+    .preview h3.pv-h1{ font-size:23px; }
+    .preview .pv-sec{ padding:19px 17px; }
+    #mapD{ height:300px; }
+  }
 </style>
 </head>
 <body>
@@ -99,10 +142,27 @@
     <div class="status" id="stC"></div>
   </div>
 
-  <div class="card">
-    <h2>D. Dynamic Map + GeoJSON ★</h2>
-    <p class="desc">네이버 검색 결과 화면과 가장 비슷함. 확대·이동 가능, 정렬 오차 없음. JS 필요, 호출량 소모.</p>
-    <div class="stage"><div id="mapD"></div></div>
+  <div class="card full">
+    <h2>D. Dynamic Map + GeoJSON ★ (실제 페이지 적용 미리보기)</h2>
+    <p class="desc">아래 영역은 /seoul/gangnam-gu/ 상세 페이지와 동일한 폰트·색상·여백·모서리로 렌더링한 미리보기입니다.</p>
+
+    <div class="preview">
+      <div class="preview-inner">
+        <h3 class="pv-h1" id="pvTitle">서울특별시 강남구</h3>
+        <p class="pv-lead" id="pvLead">지도로 배우는 대한민국 행정구역</p>
+
+        <div class="pv-sec">
+          <h4 id="pvH2">강남구는 서울 어디에 있나요?</h4>
+          <p id="pvDesc">파란색으로 표시된 영역이 강남구입니다. 지도를 움직이거나 확대해서 주변 자치구와의 위치 관계를 확인해 보세요.</p>
+          <div id="mapD"></div>
+          <p class="pv-cap" id="capD">서울특별시 강남구 위치 지도</p>
+          <div class="pv-actions">
+            <button type="button" class="pv-btn" id="resetD">↺ 처음 위치로</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div class="status" id="stD"></div>
   </div>
 </div>
@@ -263,20 +323,42 @@
     img.src = staticUrl(lon, lat, level, marker);
   }
 
-  /* ── D: Dynamic Map ── */
-  var dmap = null, dmarker = null, dBounds = null, dInited = false;
+  /* ── D: Dynamic Map (실제 적용 미리보기) ── */
+  var dmap = null, dmarker = null, dBounds = null, dReady = false;
+
+  function bindResetD() {
+    var b = document.getElementById("resetD");
+    if (!b || b.__bound) return;
+    b.__bound = true;
+    b.addEventListener("click", function () {
+      if (dmap && dBounds) dmap.fitBounds(dBounds, { top: 28, right: 28, bottom: 28, left: 28 });
+    });
+  }
+
+  function syncPreviewText(name) {
+    var t = document.getElementById("pvTitle");
+    var h = document.getElementById("pvH2");
+    var d = document.getElementById("pvDesc");
+    var c = document.getElementById("capD");
+    if (t) t.textContent = "서울특별시 " + name;
+    if (h) h.textContent = name + "는 서울 어디에 있나요?";
+    if (d) d.textContent = "파란색으로 표시된 영역이 " + name +
+          "입니다. 지도를 움직이거나 확대해서 주변 자치구와의 위치 관계를 확인해 보세요.";
+    if (c) c.textContent = "서울특별시 " + name + " 위치 지도";
+  }
 
   function renderD(name, feat, bb) {
     if (!MAPS_OK) { setStatus("stD", "maps.js가 로드되지 않아 표시할 수 없습니다.", true); return; }
     var el = document.getElementById("mapD");
-    if (!el.offsetWidth) { setStatus("stD", "컨테이너 크기 0", true); return; }
+    if (!el) { setStatus("stD", "#mapD 없음", true); return; }
+    if (!el.offsetWidth || !el.offsetHeight) { setStatus("stD", "컨테이너 크기 0", true); return; }
 
-    // 실제 그리기 작업
+    syncPreviewText(name);
+    bindResetD();
+
     function draw() {
       try {
-        var olds = [];
-        dmap.data.forEach(function (f) { olds.push(f); });
-        olds.forEach(function (f) { try { dmap.data.removeFeature(f); } catch (e) {} });
+        dmap.data.forEach(function (f) { try { dmap.data.removeFeature(f); } catch (e) {} });
         if (dmarker) { dmarker.setMap(null); dmarker = null; }
 
         dmap.data.addGeoJson({ type: "FeatureCollection", features: [feat] });
@@ -297,7 +379,7 @@
           title: "서울 " + name
         });
 
-        setStatus("stD", "Dynamic Map · +/− 버튼으로 확대·축소 · 정렬 오차 없음");
+        setStatus("stD", "Dynamic Map · 실제 페이지 스타일 · +/− 확대·축소 · 리셋 버튼 지도 밖");
       } catch (e) {
         log("✗ D 그리기 에러: " + e.message);
         setStatus("stD", "그리기 실패: " + e.message, true);
@@ -311,36 +393,29 @@
         scrollWheel: false,
         pinchZoom: true,
         mapDataControl: false,
+        logoControlOptions: { position: naver.maps.Position.BOTTOM_LEFT },
+        scaleControlOptions: { position: naver.maps.Position.BOTTOM_RIGHT },
         zoomControl: true,
         zoomControlOptions: {
           style: naver.maps.ZoomControlStyle.SMALL,
           position: naver.maps.Position.TOP_RIGHT
         }
       });
-
-      var resetBtn = document.createElement("button");
-      resetBtn.type = "button";
-      resetBtn.textContent = "↺ 처음 위치";
-      resetBtn.style.cssText =
-        "position:absolute;right:10px;bottom:10px;z-index:2;padding:7px 12px;border:1px solid #ddd;border-radius:8px;" +
-        "background:#fff;color:#3d3730;font-size:13px;line-height:1;cursor:pointer;" +
-        "box-shadow:0 1px 4px rgba(0,0,0,.18);";
-      resetBtn.onclick = function () {
-        if (dBounds) dmap.fitBounds(dBounds, { top: 28, right: 28, bottom: 28, left: 28 });
-      };
-      el.appendChild(resetBtn);
       log("✓ Dynamic Map 생성 (" + el.offsetWidth + "×" + el.offsetHeight + ") · 줌 컨트롤 ON");
 
-      // ★ init 이벤트가 전달되지 않는 API 버전에서는 짧은 지연 뒤에 초기화를 완료한다
-      setTimeout(function () {
-        dInited = true;
-        log("✓ init 대체(timeout)");
+      var drawn = false;
+      var once = function (via) {
+        if (drawn) return;
+        drawn = true; dReady = true;
+        log("✓ Dynamic Map init 완료(" + via + ")");
         draw();
-      }, 300);
+      };
+      naver.maps.Event.once(dmap, "init", function () { once("event"); });
+      setTimeout(function () { once("timeout"); }, 300);
       return;
     }
 
-    if (dInited) draw();
+    if (dReady) draw();
     else naver.maps.Event.once(dmap, "init", draw);
   }
 
