@@ -193,32 +193,34 @@
   var FEATURES = [], BY_NAME = {};
 
   function loadGeo(i) {
-    if (i >= GEOJSON_URLS.length) { log("✗ GeoJSON 로드 실패"); return; }
+    if (i >= GEOJSON_URLS.length) { log("✗ GeoJSON 로드 실패 (모든 후보 소진)"); return; }
     fetch(GEOJSON_URLS[i], { cache: "no-cache" })
-      .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+      .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
       .then(function (gj) {
         FEATURES = gj.features || [];
         FEATURES.forEach(function (f) {
           BY_NAME[f.properties.sgg_nm || f.properties.full_nm || f.properties.SIG_KOR_NM] = f;
         });
         log("✓ GeoJSON: " + GEOJSON_URLS[i] + " (feature " + FEATURES.length + "개)");
-        buildSelect();
-        render();
+        return true;
       })
-      .catch(function (e) { log("· 실패(" + GEOJSON_URLS[i] + "): " + e.message); loadGeo(i + 1); });
+      .catch(function (e) {
+        log("· 네트워크 실패(" + GEOJSON_URLS[i] + "): " + e.message);
+        return false;
+      })
+      .then(function (ok) {
+        if (!ok) { loadGeo(i + 1); return; }
+        // ★ 렌더링 에러는 폴백을 유발하지 않고 그대로 드러냄
+        try {
+          buildSelect();
+          render();
+        } catch (e) {
+          log("✗ 렌더링 에러: " + e.message);
+          log("  " + (e.stack || "").split("\n").slice(0, 3).join("\n  "));
+        }
+      });
   }
 
-  function buildSelect() {
-    var sel = document.getElementById("gu");
-    var names = Object.keys(BY_NAME).sort(function (a, b) { return a.localeCompare(b, "ko"); });
-    sel.innerHTML = names.map(function (n) {
-      return '<option value="' + n + '"' + (n === "강남구" ? " selected" : "") + ">" + n + "</option>";
-    }).join("");
-    sel.addEventListener("change", render);
-    ["lvOff", "dxOff", "dyOff"].forEach(function (id) {
-      document.getElementById(id).addEventListener("change", render);
-    });
-  }
 
   /* ── A + C: Static Map ── */
   var epIndex = 0, epResolved = false;
