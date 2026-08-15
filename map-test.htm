@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>지도 방식 비교 (임시)</title>
+<style>
+  body{font-family:system-ui,sans-serif;background:#faf7f0;color:#3d3730;
+       max-width:1200px;margin:0 auto;padding:24px}
+  h2{font-size:17px;margin:0 0 4px}
+  .note{font-size:13px;color:#8a8072;margin:0 0 10px}
+  .row{display:flex;flex-wrap:wrap;gap:24px}
+  .col{flex:1 1 340px}
+  .box{background:#fff;border:1px solid #e5ddcd;border-radius:12px;
+       padding:12px;position:relative}
+  .box img,.box svg{width:100%;height:auto;display:block;border-radius:6px}
+  .overlay{position:relative}
+  .overlay svg{position:absolute;inset:12px;width:calc(100% - 24px);height:auto}
+  .err{color:#b04a3a;font-size:13px}
+  select{padding:6px;font-size:15px;margin-bottom:16px}
+  .oth{fill:#e2dbcc;stroke:#d0c6b2;stroke-width:1.2}
+  .tgt{fill:#9cb98f;stroke:#6f8a63;stroke-width:2.4}
+  .oth-t{fill:none;stroke:#fff;stroke-width:1.2;opacity:.55}
+  .tgt-t{fill:rgba(156,185,143,.45);stroke:#4d7a3a;stroke-width:2.6}
+  text{font-size:19px;fill:#fff;text-anchor:middle;dominant-baseline:middle;
+       paint-order:stroke;stroke:#4a4a4a;stroke-width:3px}
+</style>
+</head>
+<body>
+<h1 style="font-size:20px">구별 페이지 위치 지도 — 방식 비교</h1>
+
+<label>자치구 선택: <select id="pick"></select></label>
+
+<div class="row">
+  <div class="col">
+    <h2>A. Static Map (네이버 실제 지도)</h2>
+    <p class="note">지형·도로·지명이 보임. 구 경계는 표시 안 됨.</p>
+    <div class="box"><img id="stat" alt="위치 지도"><p id="err" class="err"></p></div>
+  </div>
+  <div class="col">
+    <h2>B. SVG (경계 도형)</h2>
+    <p class="note">구 모양이 또렷함. 주변 지형 정보는 없음.</p>
+    <div class="box"><svg id="svg"></svg></div>
+  </div>
+  <div class="col">
+    <h2>C. Static Map + SVG 겹치기</h2>
+    <p class="note">실제 지도 위에 경계를 반투명으로 올림.</p>
+    <div class="box overlay"><img id="stat2" alt="위치 지도"><svg id="svg2"></svg></div>
+  </div>
+</div>
+
+<script>
+/* ── 여기 두 줄만 본인 값으로 ── */
+const CLIENT_ID = "kizfnbhv3q";
+const HOST = "https://maps.apigw.ntruss.com";  // 안 뜨면 아래 주석 참고
+/* 구 상품이면: https://naveropenapi.apigw.ntruss.com */
+
+const W = 520, H = 400, LEVEL = 10;
+const GEO = "https://cdn.jsdelivr.net/gh/ttlmymo/korea-geography-quiz@main/gu/gu_11_seoul.geojson";
+
+const rings = g => g.type === "Polygon" ? g.coordinates : g.coordinates.flat();
+function centroid(g){
+  let r = rings(g).reduce((a,b) => a.length > b.length ? a : b);
+  let A=0,x=0,y=0;
+  for(let i=0,j=r.length-1;i<r.length;j=i++){
+    const f = r[j][0]*r[i][1] - r[i][0]*r[j][1];
+    A += f; x += (r[j][0]+r[i][0])*f; y += (r[j][1]+r[i][1])*f;
+  }
+  A *= 3;
+  return A ? [x/A, y/A] : r[0];
+}
+
+/* --- B용: 등거리 투영 (서울 전체를 뷰박스에 꽉 채움) --- */
+const K = Math.cos(37.5665*Math.PI/180);
+/* --- C용: 웹 메르카토르 (Static Map과 좌표계 일치) --- */
+const world = 256 * 2**LEVEL;
+const mx = lng => (lng+180)/360*world;
+const my = lat => (1 - Math.log(Math.tan(lat*Math.PI/180)
+                 + 1/Math.cos(lat*Math.PI/180))/Math.PI)/2*world;
+
+let feats = [];
+fetch(GEO).then(r=>r.json()).then(j=>{
+  feats = j.features;
+  const sel = document.getElementById("pick");
+  feats.map(f=>f.properties.sgg_nm).sort((a,b)=>a.localeCompare(b,"ko"))
+       .forEach(n=>sel.add(new Option(n,n)));
+  sel.value = "강남구";
+  sel.onchange = () => draw(sel.value);
+  draw("강남구");
+});
+
+function pathD(g, proj){
+  return rings(g).map(r=>{
+    let d="", p=null;
+    for(const [lng,lat] of r){
+      const [x,y] = proj(lng,lat);
+      const s = x.toFixed(1)+","+y.toFixed(1);
+      if(s===p) continue;
+      d += (d?"L":"M")+s; p=s;
+    }
+    return d+"Z";
+  }).join(" ");
+}
+
+function draw(name){
+  const tgt = feats.find(f=>f.properties.sgg_nm===name);
+  const [clng,clat] = centroid(tgt.geometry);
+
+  /* A, C : Static Map */
+  const url = `${HOST}/map-static/v2/raster-cors?w=${W}&h=${H}`
+            + `&center=${clng.toFixed(6)},${clat.toFixed(6)}`
+            + `&level=${LEVEL}&X-NCP-APIGW-API-KEY-ID=${CLIENT_ID}`;
+  const im = document.getElementById("stat"), im2 = document.getElementById("stat2");
+  im.onerror = () => document.getElementById("err").textContent =
+    "이미지 실패 → HOST 주소 또는 Web 서비스 URL 등록을 확인하세요.";
+  im.src = url; im2.src = url;
+
+  /* B : 서울 전체 등거리 투영 */
+  let mnx=1e9,mxx=-1e9,mny=1e9,mxy=-1e9;
+  for(const f of feats) for(const r of rings(f.geometry)) for(const [lng,lat] of r){
+    const x=lng*K, y=-lat;
+    mnx=Math.min(mnx,x); mxx=Math.max(mxx,x);
+    mny=Math.min(mny,y); mxy=Math.max(mxy,y);
+  }
+  const sc = 1000/(mxx-mnx), vh = Math.round((mxy-mny)*sc);
+  const pB = (lng,lat)=>[(lng*K-mnx)*sc, (-lat-mny)*sc];
+  const svg = document.getElementById("svg");
+  svg.setAttribute("viewBox",`0 0 1000 ${vh}`);
+  svg.innerHTML = feats.map(f=>
+    `<path class="${f===tgt?"tgt":"oth"}" fill-rule="evenodd"
+      d="${pathD(f.geometry,pB)}"/>`).join("")
+    + `<text x="${pB(clng,clat)[0]}" y="${pB(clng,clat)[1]}">${name}</text>`;
+
+  /* C : Static Map과 같은 메르카토르 좌표계 */
+  const ox = mx(clng)-W/2, oy = my(clat)-H/2;
+  const pC = (lng,lat)=>[mx(lng)-ox, my(lat)-oy];
+  const svg2 = document.getElementById("svg2");
+  svg2.setAttribute("viewBox",`0 0 ${W} ${H}`);
+  svg2.innerHTML = feats.map(f=>
+    `<path class="${f===tgt?"tgt-t":"oth-t"}" fill-rule="evenodd"
+      d="${pathD(f.geometry,pC)}"/>`).join("");
+}
+</script>
+</body>
+</html>
