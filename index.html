@@ -83,6 +83,19 @@
     border-top:1px solid var(--line); font-size:13px; color:var(--muted); line-height:2;
   }
   footer a { color:var(--muted); text-decoration:none; }
+  .gu-grid {
+    display:grid; grid-template-columns:repeat(auto-fill, minmax(120px, 1fr));
+    gap:10px; margin-top:14px;
+  }
+  .gu-grid a {
+    display:block; text-align:center; padding:11px 6px;
+    background:var(--bg); border-radius:14px; text-decoration:none;
+    color:var(--text); font-size:15px;
+    box-shadow:inset 0 2px 5px rgba(150,135,108,.18);
+    transition:transform .15s;
+  }
+  .gu-grid a:hover { transform:translateY(-2px); color:var(--sage-d); }
+  .hub-link { display:inline-block; margin-top:14px; font-size:15px; color:var(--sage-d); }
   @media (max-width:600px) {
     header h1 { font-size:24px; }
     section { padding:20px 18px; }
@@ -124,6 +137,40 @@
       <span class="tag">🌊 인천광역시 군·구</span>
       <span class="tag">🏞️ 경기도 시·군</span>
     </div>
+  </section>
+
+  <section>
+    <h2>서울 자치구별 소개</h2>
+    <p>서울특별시 25개 자치구를 하나씩 정리했습니다. 각 페이지에서 해당 구의 지도상 위치, 법정동 목록, 이름의 유래와 간략한 역사를 확인할 수 있습니다.</p>
+    <div class="gu-grid">
+      <a href="/korea-geography-quiz/seoul/gangnam-gu/">강남구</a>
+      <a href="/korea-geography-quiz/seoul/gangdong-gu/">강동구</a>
+      <a href="/korea-geography-quiz/seoul/gangbuk-gu/">강북구</a>
+      <a href="/korea-geography-quiz/seoul/gangseo-gu/">강서구</a>
+      <a href="/korea-geography-quiz/seoul/gwanak-gu/">관악구</a>
+      <a href="/korea-geography-quiz/seoul/gwangjin-gu/">광진구</a>
+      <a href="/korea-geography-quiz/seoul/guro-gu/">구로구</a>
+      <a href="/korea-geography-quiz/seoul/geumcheon-gu/">금천구</a>
+      <a href="/korea-geography-quiz/seoul/nowon-gu/">노원구</a>
+      <a href="/korea-geography-quiz/seoul/dobong-gu/">도봉구</a>
+      <a href="/korea-geography-quiz/seoul/dongdaemun-gu/">동대문구</a>
+      <a href="/korea-geography-quiz/seoul/dongjak-gu/">동작구</a>
+      <a href="/korea-geography-quiz/seoul/mapo-gu/">마포구</a>
+      <a href="/korea-geography-quiz/seoul/seodaemun-gu/">서대문구</a>
+      <a href="/korea-geography-quiz/seoul/seocho-gu/">서초구</a>
+      <a href="/korea-geography-quiz/seoul/seongdong-gu/">성동구</a>
+      <a href="/korea-geography-quiz/seoul/seongbuk-gu/">성북구</a>
+      <a href="/korea-geography-quiz/seoul/songpa-gu/">송파구</a>
+      <a href="/korea-geography-quiz/seoul/yangcheon-gu/">양천구</a>
+      <a href="/korea-geography-quiz/seoul/yeongdeungpo-gu/">영등포구</a>
+      <a href="/korea-geography-quiz/seoul/yongsan-gu/">용산구</a>
+      <a href="/korea-geography-quiz/seoul/eunpyeong-gu/">은평구</a>
+      <a href="/korea-geography-quiz/seoul/jongno-gu/">종로구</a>
+      <a href="/korea-geography-quiz/seoul/jung-gu/">중구</a>
+      <a href="/korea-geography-quiz/seoul/jungnang-gu/">중랑구</a>
+    </div>
+    <a class="hub-link" href="/korea-geography-quiz/seoul/">서울 자치구 전체 목록 보기 →</a>
+    <p style="margin-top:14px; font-size:14px; color:var(--muted);">인천광역시와 경기도는 학습·게임 모드에서 바로 이용할 수 있으며, 구·시·군별 소개 페이지는 순차적으로 추가하고 있습니다.</p>
   </section>
 
   <section>
