@@ -221,6 +221,17 @@
       });
   }
 
+  function buildSelect() {
+    var sel = document.getElementById("gu");
+    var names = Object.keys(BY_NAME).sort(function (a, b) { return a.localeCompare(b, "ko"); });
+    sel.innerHTML = names.map(function (n) {
+      return '<option value="' + n + '"' + (n === "강남구" ? " selected" : "") + ">" + n + "</option>";
+    }).join("");
+    sel.addEventListener("change", render);
+    ["lvOff", "dxOff", "dyOff"].forEach(function (id) {
+      document.getElementById(id).addEventListener("change", render);
+    });
+  }
 
   /* ── A + C: Static Map ── */
   var epIndex = 0, epResolved = false;
