@@ -96,6 +96,25 @@
   }
   .gu-grid a:hover { transform:translateY(-2px); color:var(--sage-d); }
   .hub-link { display:inline-block; margin-top:14px; font-size:15px; color:var(--sage-d); }
+  .home-seoul-map { margin:18px 0 8px; }
+  #homeSeoulDistrictMap {
+    position:relative; width:100%; height:420px; overflow:hidden;
+    border-radius:16px; background:var(--bg);
+    box-shadow:inset 0 2px 5px rgba(150,135,108,.18);
+  }
+  .home-seoul-map-wait {
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    color:var(--muted); font-size:14px;
+  }
+  .home-seoul-map-caption { margin:6px 0 0; font-size:12px; color:var(--muted); text-align:center; }
+  .home-seoul-map-actions { display:flex; justify-content:flex-end; margin-top:10px; }
+  .home-seoul-map-reset {
+    font-family:inherit; font-size:13.5px; line-height:1.4; color:var(--text);
+    background:var(--bg); border:1px solid var(--line); border-radius:12px;
+    padding:8px 16px; cursor:pointer;
+  }
+  .home-seoul-map-reset:hover { background:#ded7c8; }
+  .home-seoul-map-reset:focus-visible { outline:3px solid var(--sage-d); outline-offset:2px; }
   @media (max-width:600px) {
     header h1 { font-size:24px; }
     section { padding:20px 18px; }
@@ -142,6 +161,12 @@
   <section>
     <h2>서울 자치구별 소개</h2>
     <p>서울특별시 25개 자치구를 하나씩 정리했습니다. 각 페이지에서 해당 구의 지도상 위치, 법정동 목록, 이름의 유래와 간략한 역사를 확인할 수 있습니다.</p>
+    <div class="home-seoul-map" aria-label="서울특별시 25개 자치구 위치 지도">
+      <div id="homeSeoulDistrictMap"><span class="home-seoul-map-wait">서울 지도를 불러오는 중…</span></div>
+      <p class="home-seoul-map-caption">서울특별시 25개 자치구 위치 지도</p>
+      <div class="home-seoul-map-actions"><button type="button" class="home-seoul-map-reset" id="homeSeoulMapReset">↺ 서울 전체 보기</button></div>
+      <noscript><p class="home-seoul-map-caption">지도를 보려면 자바스크립트를 켜 주세요. 아래 목록에서 자치구를 선택할 수 있습니다.</p></noscript>
+    </div>
     <div class="gu-grid">
       <a href="/korea-geography-quiz/seoul/gangnam-gu/">강남구</a>
       <a href="/korea-geography-quiz/seoul/gangdong-gu/">강동구</a>
@@ -192,5 +217,102 @@
   </footer>
 
 </div>
+
+<script>
+(function () {
+  "use strict";
+
+  var MAPS_URL = "https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=kizfnbhv3q";
+  var GEOJSON_URL = "/korea-geography-quiz/gu/gu_11_seoul.geojson";
+  var hrefByName = {
+    "강남구":"/korea-geography-quiz/seoul/gangnam-gu/", "강동구":"/korea-geography-quiz/seoul/gangdong-gu/",
+    "강북구":"/korea-geography-quiz/seoul/gangbuk-gu/", "강서구":"/korea-geography-quiz/seoul/gangseo-gu/",
+    "관악구":"/korea-geography-quiz/seoul/gwanak-gu/", "광진구":"/korea-geography-quiz/seoul/gwangjin-gu/",
+    "구로구":"/korea-geography-quiz/seoul/guro-gu/", "금천구":"/korea-geography-quiz/seoul/geumcheon-gu/",
+    "노원구":"/korea-geography-quiz/seoul/nowon-gu/", "도봉구":"/korea-geography-quiz/seoul/dobong-gu/",
+    "동대문구":"/korea-geography-quiz/seoul/dongdaemun-gu/", "동작구":"/korea-geography-quiz/seoul/dongjak-gu/",
+    "마포구":"/korea-geography-quiz/seoul/mapo-gu/", "서대문구":"/korea-geography-quiz/seoul/seodaemun-gu/",
+    "서초구":"/korea-geography-quiz/seoul/seocho-gu/", "성동구":"/korea-geography-quiz/seoul/seongdong-gu/",
+    "성북구":"/korea-geography-quiz/seoul/seongbuk-gu/", "송파구":"/korea-geography-quiz/seoul/songpa-gu/",
+    "양천구":"/korea-geography-quiz/seoul/yangcheon-gu/", "영등포구":"/korea-geography-quiz/seoul/yeongdeungpo-gu/",
+    "용산구":"/korea-geography-quiz/seoul/yongsan-gu/", "은평구":"/korea-geography-quiz/seoul/eunpyeong-gu/",
+    "종로구":"/korea-geography-quiz/seoul/jongno-gu/", "중구":"/korea-geography-quiz/seoul/jung-gu/",
+    "중랑구":"/korea-geography-quiz/seoul/jungnang-gu/"
+  };
+  var el = document.getElementById("homeSeoulDistrictMap");
+  var resetBtn = document.getElementById("homeSeoulMapReset");
+  var started = false, drawn = false, map = null, bounds = null;
+
+  function eachCoord(geometry, cb) {
+    function walk(arr, depth) { if (depth === 0) { cb(arr[0], arr[1]); return; } arr.forEach(function (a) { walk(a, depth - 1); }); }
+    if (geometry.type === "Polygon") walk(geometry.coordinates, 2);
+    else if (geometry.type === "MultiPolygon") walk(geometry.coordinates, 3);
+  }
+  function bboxOf(features) {
+    var minLon=Infinity, minLat=Infinity, maxLon=-Infinity, maxLat=-Infinity;
+    features.forEach(function (feature) { eachCoord(feature.geometry, function (lon, lat) {
+      minLon=Math.min(minLon,lon); minLat=Math.min(minLat,lat); maxLon=Math.max(maxLon,lon); maxLat=Math.max(maxLat,lat);
+    }); });
+    return [minLon, minLat, maxLon, maxLat];
+  }
+  function fitSeoulBounds() {
+    if (!map || !bounds) return;
+    map.fitBounds(bounds, {top:28,right:28,bottom:28,left:28});
+    map.setZoom(10);
+  }
+  function draw(geo) {
+    if (drawn) return; drawn = true;
+    var features = (geo.features || []).filter(function (feature) {
+      return feature && feature.geometry && hrefByName[feature.properties && feature.properties.sgg_nm];
+    });
+    map.data.addGeoJson({type:"FeatureCollection", features:features});
+    map.data.setStyle({fillColor:"#1a73e8", fillOpacity:0.12, strokeColor:"#1a73e8", strokeOpacity:0.95, strokeWeight:2.5});
+    var bb = bboxOf(features);
+    bounds = new naver.maps.LatLngBounds(new naver.maps.LatLng(bb[1],bb[0]), new naver.maps.LatLng(bb[3],bb[2]));
+    fitSeoulBounds();
+    naver.maps.Event.addListener(map.data, "mouseover", function (e) {
+      map.data.revertStyle();
+      map.data.overrideStyle(e.feature, {fillColor:"#1a73e8", fillOpacity:0.28, strokeColor:"#0b57d0", strokeOpacity:1, strokeWeight:3});
+    });
+    naver.maps.Event.addListener(map.data, "mouseout", function () { map.data.revertStyle(); });
+    naver.maps.Event.addListener(map.data, "click", function (e) {
+      var name = e.feature && e.feature.getProperty("sgg_nm");
+      if (name && hrefByName[name]) window.location.href = hrefByName[name];
+    });
+  }
+  function init() {
+    var wait = el.querySelector(".home-seoul-map-wait"); if (wait) wait.remove();
+    map = new naver.maps.Map(el, {
+      center:new naver.maps.LatLng(37.5665,126.9780), zoom:10, scrollWheel:false, pinchZoom:true, mapDataControl:false,
+      logoControlOptions:{position:naver.maps.Position.BOTTOM_LEFT}, scaleControlOptions:{position:naver.maps.Position.BOTTOM_RIGHT},
+      zoomControl:true, zoomControlOptions:{style:naver.maps.ZoomControlStyle.SMALL,position:naver.maps.Position.TOP_RIGHT}
+    });
+    fetch(GEOJSON_URL).then(function (r) { if (!r.ok) throw new Error("GeoJSON load failed"); return r.json(); })
+      .then(function (geo) { naver.maps.Event.once(map,"init",function () { draw(geo); }); setTimeout(function () { draw(geo); },300); })
+      .catch(function () { el.innerHTML = ""; });
+  }
+  function loadNaver(done) {
+    if (window.naver && window.naver.maps) { done(); return; }
+    var old = document.querySelector("script[data-home-seoul-map-api]");
+    if (old) { old.addEventListener("load", done, {once:true}); return; }
+    var script = document.createElement("script");
+    script.src = MAPS_URL; script.async = true; script.dataset.homeSeoulMapApi = "1";
+    script.onload = done; script.onerror = function () { el.innerHTML = ""; };
+    document.head.appendChild(script);
+  }
+  function start() { if (started) return; started = true; loadNaver(init); }
+  function observe() {
+    if ("IntersectionObserver" in window) {
+      var observer = new IntersectionObserver(function (entries) {
+        if (entries.some(function (entry) { return entry.isIntersecting; })) { observer.disconnect(); start(); }
+      }, {rootMargin:"200px"});
+      observer.observe(el);
+    } else { start(); }
+  }
+  if (resetBtn) resetBtn.addEventListener("click", fitSeoulBounds);
+  if (document.readyState === "complete") observe(); else window.addEventListener("load", observe, {once:true});
+})();
+</script>
+
 </body>
 </html>
