@@ -328,12 +328,11 @@
       resetBtn.onclick = function () {
         if (dBounds) dmap.fitBounds(dBounds, { top: 28, right: 28, bottom: 28, left: 28 });
       };
-      dmap.controls[naver.maps.Position.BOTTOM_RIGHT].push(resetBtn);
-
       log("✓ Dynamic Map 생성 (" + el.offsetWidth + "×" + el.offsetHeight + ") · 줌 컨트롤 ON");
 
-      // ★ 초기화 완료 후에 그린다 (내부 좌표계 미준비 상태 접근 방지)
+      // ★ 초기화 완료 후에 컨트롤과 GeoJSON을 추가한다 (내부 좌표계 미준비 상태 접근 방지)
       naver.maps.Event.once(dmap, "init", function () {
+        dmap.controls[naver.maps.Position.BOTTOM_RIGHT].push(resetBtn);
         dInited = true;
         log("✓ Dynamic Map init 완료");
         draw();
