@@ -322,17 +322,17 @@
       resetBtn.type = "button";
       resetBtn.textContent = "↺ 처음 위치";
       resetBtn.style.cssText =
-        "margin:0 10px 10px 0;padding:7px 12px;border:1px solid #ddd;border-radius:8px;" +
+        "position:absolute;right:10px;bottom:10px;z-index:2;padding:7px 12px;border:1px solid #ddd;border-radius:8px;" +
         "background:#fff;color:#3d3730;font-size:13px;line-height:1;cursor:pointer;" +
         "box-shadow:0 1px 4px rgba(0,0,0,.18);";
       resetBtn.onclick = function () {
         if (dBounds) dmap.fitBounds(dBounds, { top: 28, right: 28, bottom: 28, left: 28 });
       };
+      el.appendChild(resetBtn);
       log("✓ Dynamic Map 생성 (" + el.offsetWidth + "×" + el.offsetHeight + ") · 줌 컨트롤 ON");
 
       // ★ init 이벤트가 전달되지 않는 API 버전에서는 짧은 지연 뒤에 초기화를 완료한다
       setTimeout(function () {
-        dmap.controls[naver.maps.Position.BOTTOM_RIGHT].push(resetBtn);
         dInited = true;
         log("✓ init 대체(timeout)");
         draw();
